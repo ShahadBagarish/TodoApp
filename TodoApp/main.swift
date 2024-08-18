@@ -30,17 +30,12 @@ protocol Cache {
 
 class FileSystemCache: Cache {
     
-    let path: URL
-    let readingData: [Todo]
-    
-    init() {
-        let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        let path = paths.appendingPathComponent("userProfile.json")
-    }
+    let path = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!.appendingPathComponent("userProfile.json")
+    var readingData: [Todo] = []
 
     
     func save(todos: [Todo]) {
-        let readingData = todos
+        readingData = todos
         
         do {
          let jsonEncoder = JSONEncoder()
@@ -57,11 +52,12 @@ class FileSystemCache: Cache {
             let jsonData = try Data(contentsOf: self.path)
             
             let jsonDecoder = JSONDecoder()
-            let readingData = try jsonDecoder.decode(Todo.self, from: jsonData)
+            let readingData = try jsonDecoder.decode([Todo].self, from: jsonData)
             
         } catch {
             print("Error decoding data: \(error)")
         }
+        return readingData
     }
     
     
@@ -70,32 +66,36 @@ class FileSystemCache: Cache {
 // `InMemoryCache`: : Keeps todos in an array or similar structure during the session.
 // This won't retain todos across different app launches,
 // but serves as a quick in-session cache.
-final class InMemoryCache: Cache {
-    func save(todos: [Todo]) {
-        <#code#>
-    }
-    
-    func load() -> [Todo]? {
-        <#code#>
-    }
-    
-    
-}
+//final class InMemoryCache: Cache {
+//    func save(todos: [Todo]) {
+//        
+//    }
+//    
+//    func load() -> [Todo]? {
+//        
+//    }
+//    
+//    
+//}
 
 final class TodoManager: FileSystemCache {
+    var tasks: [Todo] = []
     
-    func listTodos(all: [Todo]){
+    func listTodos(){
         print("\n 📝 Your Todos: ")
-        
-        for index in all.indices {
-            print("    \(index+1). \(all[index].isCompleted ? "✅" : "❌") \(all[index].title) ")
+        var loadData = load()
+        if let load = loadData{
+            for index in load.indices {
+                print("    \(index+1). \(load[index].isCompleted ? "✅" : "❌") \(load[index].title) ")
+            }
+            print(" ")
         }
-        print(" ")
     }
     
-    func addTodo(_ title: String) -> Todo{
+    func addTodo(_ title: String){
         let task = Todo(description: "This is a description for \(title) task", title: title)
-        return task
+        tasks.append(task)
+        save(todos: tasks)
     }
 
     func toggleCompletion(at index: Int, all: inout [Todo]){
@@ -122,10 +122,10 @@ final class App {
         case delete
     }
     
-    let manager = TodoManager()
-    var tasks: [Todo] = []
-    
+
     func run(){
+        let manager = TodoManager()
+        var tasks: [Todo] = []
         var breaker = ""
         
         repeat {
@@ -140,13 +140,12 @@ final class App {
                     case .add:
                         print("\n Enter todo title: ")
                         if let title = readLine() {
-                            var newAdd = manager.addTodo(title)
-                            tasks.append(newAdd)
+                            manager.addTodo(title)
                             print("\n Todo added! \n")
                         }
                         
                     case .delete:
-                        manager.listTodos(all: tasks)
+                        manager.listTodos()
                         print("\n Enter the number of the todo to delete: \n")
                         if var number = readLine() {
                             if var num = Int(number) {
@@ -155,7 +154,7 @@ final class App {
                         }
                         
                     case .list:
-                        manager.listTodos(all: tasks)
+                        manager.listTodos()
                         
                     case .toggle:
                         print("\n Enter the number of todo to toggle: ")
