@@ -55,9 +55,6 @@ class FileSystemCache: Cache {
     
 }
 
-// `InMemoryCache`: : Keeps todos in an array or similar structure during the session.
-// This won't retain todos across different app launches,
-// but serves as a quick in-session cache.
 class InMemoryCache: Cache {
     
     var savedData: [Todo]?
@@ -73,43 +70,53 @@ class InMemoryCache: Cache {
     
 }
 
-final class TodoManager: InMemoryCache {
+final class TodoManager: FileSystemCache {
     var tasks: [Todo] = []
     
-    func listTodos(){
-        print("\n 📝 Your Todos: ")
-        if let load = load() {
-            for index in load.indices {
-                print("    \(index+1). \(load[index].isCompleted ? "✅" : "❌") \(load[index].title) ")
-            }
-            print(" ")
-        }
-    }
-    
-    func addTodo(_ title: String){
+    func add(_ title: String){
         let task = Todo(description: "This is a description for \(title) task", title: title)
         tasks.append(task)
         save(todos: tasks)
     }
     
+    func listTodos(){
+        if let load = load() {
+            if load.isEmpty{
+                print("\n 💡 There is no task added \n")
+            }else{
+                print("\n 📝 Your Todos: ")
+                for index in load.indices {
+                    print("    \(index+1). \(load[index].isCompleted ? "✅" : "❌") \(load[index].title) ")
+                }
+                print(" ")
+            }
+        }
+    }
+    
     func toggleCompletion(at index: Int){
         if let loadData = load(){
             if index > loadData.count{
-                print("\n Number out of scope \n")
+                print("\n ⚠️ There is no \(index) task \n")
             }else{
                 print("\n 🔄 Todo completion status is toggled! \n")
-                tasks[index-1].isCompleted = true
+                tasks[index-1].isCompleted = !tasks[index-1].isCompleted
                 save(todos: tasks)
             }
         }
         
     }
+    
     func delete(at index: Int){
         if let load = load() {
-            tasks.remove(at: index-1)
-            save(todos: tasks)
+            if index > load.count{
+                print("\n ⚠️ There is no \(index) task \n")
+            }else{
+                
+                tasks.remove(at: index-1)
+                save(todos: tasks)
+                print("\n 🗑️ Todo Deleted \n")
+            }
         }
-        print("\n 🗑️ Todo Deleted \n")
     }
 }
 
@@ -121,33 +128,30 @@ final class App {
         case list
         case toggle
         case delete
+        case exit
     }
     
     
     func run(){
 
         let manager = TodoManager()
-        var breaker = ""
+        var breaker = Command.list
         
         repeat {
             print("What you would like to do? (add, list, toggle, delete, exit): ")
             if let input = readLine() {
-                guard input != "exit" else{
-                    breaker = "exit"
-                    break
-                }
                 if let inp = App.Command(rawValue: input) {
                     switch inp{
                     case .add:
-                        print("\n Enter todo title: ")
+                        print("Enter todo title: ")
                         if let title = readLine() {
-                            manager.addTodo(title)
-                            print("\n Todo added! \n")
+                            manager.add(title)
+                            print("\n 📌 Todo added! \n")
                         }
                         
                     case .delete:
                         manager.listTodos()
-                        print("\n Enter the number of the todo to delete: \n")
+                        print("Enter the number of the todo to delete: \n")
                         if let number = readLine() {
                             if let num = Int(number) {
                                 manager.delete(at: Int(num))
@@ -158,24 +162,27 @@ final class App {
                         manager.listTodos()
                         
                     case .toggle:
-                        print("\n Enter the number of todo to toggle: ")
+                        manager.listTodos()
+                        print("Enter the number of todo to toggle: ")
                         if let number = readLine() {
                             if let num = Int(number) {
                                 manager.toggleCompletion(at: Int(num))
                             }
                         }
+                    case .exit:
+                        breaker = Command.exit
                     }
                 }else{
-                    print("Entry not valid")
+                    print("\n ⚠️ Entry not valid \n")
                 }
             }
             
-        } while breaker != "exit"
+        } while breaker != .exit
     }
 }
 
 // TODO: Write code to set up and run the app.
-print("Welcom to Todo CLI ✨")
+print(" 🌟 Welcom to Todo CLI 🌟")
 let app: () = App().run()
 
 
