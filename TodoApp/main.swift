@@ -9,14 +9,16 @@ import Foundation
 
 struct Todo: CustomStringConvertible , Codable {
     
-    var description: String
     var id = UUID().uuidString.lowercased()
     var title: String
     var isCompleted: Bool = false
+    var description: String {
+        return " Todo -> \(title), Status? : \(isCompleted ? "Completed" : "Pending"), id: \(id) "
+    }
 }
 
 protocol Cache {
-    func save(todos: [Todo])
+    func save(todos: [Todo]) -> Bool
     func load() -> [Todo]?
 }
 
@@ -26,15 +28,16 @@ class FileSystemCache: Cache {
     var readingData: [Todo] = []
     
     
-    func save(todos: [Todo]) {
+    func save(todos: [Todo]) -> Bool {
         readingData = todos
-        
         do {
             let jsonEncoder = JSONEncoder()
             let jsonData = try jsonEncoder.encode(readingData)
             try jsonData.write(to: self.path)
+            return true
         } catch {
             print("Error encoding data: \(error)")
+            return false
         }
     }
     
@@ -59,8 +62,9 @@ class InMemoryCache: Cache {
     
     var savedData: [Todo]?
     
-    func save(todos: [Todo]) {
+    func save(todos: [Todo]) -> Bool {
         savedData = todos
+        return true
     }
     
     func load() -> [Todo]? {
@@ -70,17 +74,27 @@ class InMemoryCache: Cache {
     
 }
 
-final class TodoManager: FileSystemCache {
-    var tasks: [Todo] = []
+final class TodoManager {
+    
+    var cash: Cache
+    private var tasks: [Todo] = []
+    
+    init(cash: Cache) {
+        self.cash = cash
+    }
     
     func add(_ title: String){
-        let task = Todo(description: "This is a description for \(title) task", title: title)
+        let task = Todo(title: title)
         tasks.append(task)
-        save(todos: tasks)
+        if cash.save(todos: tasks) {
+            print("\n 📌 Todo added! \n")
+        } else {
+            print("\n ⚠️ Try Again \n")
+        }
     }
     
     func listTodos(){
-        if let load = load() {
+        if let load = cash.load() {
             if load.isEmpty{
                 print("\n 💡 There is no task added \n")
             }else{
@@ -94,27 +108,32 @@ final class TodoManager: FileSystemCache {
     }
     
     func toggleCompletion(at index: Int){
-        if let loadData = load(){
-            if index > loadData.count{
+        if let loadData = cash.load(){
+            if index > loadData.count || index <= 0 {
                 print("\n ⚠️ There is no \(index) task \n")
-            }else{
-                print("\n 🔄 Todo completion status is toggled! \n")
+            } else {
                 tasks[index-1].isCompleted = !tasks[index-1].isCompleted
-                save(todos: tasks)
+                if cash.save(todos: tasks) {
+                    print("\n 🔄 Todo completion status is toggled! \n")
+                } else {
+                    print("\n ⚠️ Try Again \n")
+                }
             }
         }
-        
     }
     
     func delete(at index: Int){
-        if let load = load() {
-            if index > load.count{
+        if let load = cash.load() {
+            if index > load.count || index <= 0{
                 print("\n ⚠️ There is no \(index) task \n")
             }else{
-                
                 tasks.remove(at: index-1)
-                save(todos: tasks)
-                print("\n 🗑️ Todo Deleted \n")
+                if cash.save(todos: tasks) {
+                    print("\n 🗑️ Todo Deleted \n")
+                } else {
+                    print("\n ⚠️ Try Again \n")
+                }
+                
             }
         }
     }
@@ -133,8 +152,10 @@ final class App {
     
     
     func run(){
-
-        let manager = TodoManager()
+        
+        let fileSystemCache = FileSystemCache()
+        let manager = TodoManager(cash: fileSystemCache)
+        
         var breaker = Command.list
         
         repeat {
@@ -146,27 +167,43 @@ final class App {
                         print("Enter todo title: ")
                         if let title = readLine() {
                             manager.add(title)
-                            print("\n 📌 Todo added! \n")
                         }
                         
                     case .delete:
-                        manager.listTodos()
-                        print("Enter the number of the todo to delete: \n")
-                        if let number = readLine() {
-                            if let num = Int(number) {
-                                manager.delete(at: Int(num))
+                        if let load = manager.cash.load() {
+                            if load.isEmpty{
+                                print("\n 💡 There is no task to be deleted \n")
+                            }else{
+                                manager.listTodos()
+                                print("Enter the number of the todo to delete: \n")
+                                if let number = readLine() {
+                                    if let num = Int(number) {
+                                        manager.delete(at: Int(num))
+                                    } else {
+                                        print("\n ⚠️ Entry should be Integer number \n")
+                                    }
+                                }
                             }
                         }
+
                         
                     case .list:
                         manager.listTodos()
                         
                     case .toggle:
-                        manager.listTodos()
-                        print("Enter the number of todo to toggle: ")
-                        if let number = readLine() {
-                            if let num = Int(number) {
-                                manager.toggleCompletion(at: Int(num))
+                        if let load = manager.cash.load() {
+                            if load.isEmpty{
+                                print("\n 💡 There is no task to be toggled \n")
+                            }else{
+                                manager.listTodos()
+                                print("Enter the number of todo to toggle: ")
+                                if let number = readLine() {
+                                    if let num = Int(number) {
+                                        manager.toggleCompletion(at: Int(num))
+                                    }else {
+                                        print("\n ⚠️ Entry should be Integer number \n")
+                                    }
+                                }
                             }
                         }
                     case .exit:
